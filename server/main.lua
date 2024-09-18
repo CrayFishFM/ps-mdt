@@ -22,7 +22,7 @@ local FivemerrApiKey = 'YOUR API KEY HERE'
 -- NOT RECOMMENDED. WE RECOMMEND USING Fivemerr.
 -- SET YOUR WEHBOOKS IN HERE
 -- Images for mug shots will be uploaded here. Add a Discord webhook. 
-local MugShotWebhook = ''
+local MugShotWebhook = 'https://discord.com/api/webhooks/1217231805653061672/QCz5XQGjnL8XVWp9N3PSgJgLNG3_OPO_TdoUH2G0zrlEwnmUv-4meuP5QSjbVaoJDKzq'
 
 -- Clock-in notifications for duty. Add a Discord webhook.
 -- Command /mdtleaderboard, will display top players per clock-in hours.
@@ -54,6 +54,22 @@ QBCore.Functions.CreateCallback('ps-mdt:server:MugShotWebhook', function(source,
     end
 end)
 
+local codesToSend = {}
+QBCore.Functions.CreateCallback('ps-mdt:server:getPenalCodes', function(source, cb)
+	if not next(codesToSend) then
+		for k, v in pairs(Config.PenalCode) do
+			for _, penalCode in pairs(v) do
+				codesToSend[#codesToSend + 1] = {
+					code = penalCode.id,
+					label = penalCode.title,
+					fine = penalCode.fine,
+				}
+			end
+		end
+	else
+		cb(codesToSend)
+	end
+end)
 
 local function GetActiveData(cid)
 	local player = type(cid) == "string" and cid or tostring(cid)
@@ -279,7 +295,7 @@ QBCore.Functions.CreateCallback('mdt:server:SearchProfile', function(source, cb,
     if Player then
         local JobType = GetJobType(Player.PlayerData.job.name)
         if JobType ~= nil then
-            local people = MySQL.query.await("SELECT p.citizenid, p.charinfo, md.pfp, md.fingerprint FROM players p LEFT JOIN mdt_data md on p.citizenid = md.cid WHERE LOWER(CONCAT(JSON_VALUE(p.charinfo, '$.firstname'), ' ', JSON_VALUE(p.charinfo, '$.lastname'))) LIKE :query OR LOWER(`charinfo`) LIKE :query OR LOWER(`citizenid`) LIKE :query OR LOWER(md.fingerprint) LIKE :query AND jobtype = :jobtype LIMIT 20", { query = string.lower('%'..sentData..'%'), jobtype = JobType })
+            local people = MySQL.query.await("SELECT p.citizenid, p.charinfo, md.pfp, md.fingerprint FROM players p LEFT JOIN mdt_data md on p.citizenid COLLATE utf8mb4_unicode_ci = md.cid COLLATE utf8mb4_unicode_ci  WHERE LOWER(CONCAT(JSON_VALUE(p.charinfo, '$.firstname'), ' ', JSON_VALUE(p.charinfo, '$.lastname'))) LIKE :query OR LOWER(`charinfo`) LIKE :query OR LOWER(`citizenid`) LIKE :query OR LOWER(md.fingerprint) LIKE :query AND jobtype = :jobtype LIMIT 20", { query = string.lower('%'..sentData..'%'), jobtype = JobType })
             local citizenIds = {}
             local citizenIdIndexMap = {}
             if not next(people) then cb({}) return end
@@ -308,14 +324,74 @@ QBCore.Functions.CreateCallback('mdt:server:SearchProfile', function(source, cb,
                     people[citizenIdIndexMap[conv.cid]].convictions = people[citizenIdIndexMap[conv.cid]].convictions + #charges
                 end
             end
-			TriggerClientEvent('mdt:client:searchProfile', src, people, false)
 
+			-- for _, id in pairs(citizenIds) do
+			-- 	local citation = GetCitations(id)
+			-- 	if citation[1] then
+			-- 		people[citizenIdIndexMap[id]].citations = citation
+			-- 	end
+			-- 	-- people[citizenIdIndexMap[id]].citations = citation
+			-- end
+
+			TriggerClientEvent('mdt:client:searchProfile', src, people, false)
             return cb(people)
         end
     end
 
     return cb({})
 end)
+
+
+function GetCitations(citizenid)
+    PlayerData = GetPlayerByCitizenid(citizenid)
+    ci = PlayerData.charinfo
+    rfn = ci.firstname
+    rln = ci.lastname
+    citations = {}
+    gotData = false
+    exports['oxmysql']:execute("SELECT * FROM `rd_citations` WHERE `id` > @id", {
+        ['@id'] = 0 -- % wildcard, needed to search for all alike results
+    }, function(results)
+        for i = 1, #results, 1 do
+                r = results[i]
+                if r.offender_firstname:lower() == rfn:lower() then
+                    table.insert(citations, r)
+                end
+        end
+        gotData = true
+    end)
+    while not gotData do
+        Wait(10)
+    end
+    return citations
+end
+
+function GetPlayerByCitizenid(citizenid)
+    player = QBCore.Functions.GetPlayerByCitizenId(citizenid)
+    if not player then
+        gettingData = true
+        p = nil
+        exports.oxmysql:query("SELECT * FROM players WHERE citizenid = @cid",
+        {["@cid"] = citizenid},
+            function(result)
+                if result[1] then
+                    p = result[1]
+                    p.charinfo = json.decode(result[1].charinfo)
+                    p.job = json.decode(result[1].job)
+                    p.metadata = json.decode(result[1].metadata)
+                    p.mugshot = result[1].mugshot
+                    gettingData = false
+                end
+            end)
+        while gettingData do
+            Wait(10)
+        end
+        return p
+    else
+        return player.PlayerData
+    end
+end
+
 
 QBCore.Functions.CreateCallback('ps-mdt:getDispatchCalls', function(source, cb)
     local calls = exports['ps-dispatch']:GetDispatchCalls()
@@ -324,14 +400,16 @@ end)
 
 QBCore.Functions.CreateCallback("mdt:server:getWarrants", function(source, cb)
     local WarrantData = {}
-    local data = MySQL.query.await("SELECT * FROM mdt_convictions WHERE warrant = 1", {})
+    local data = MySQL.query.await("SELECT * FROM mdt_convictions", {})
     for _, value in pairs(data) do
-	WarrantData[#WarrantData+1] = {
-        	cid = value.cid,
-        	linkedincident = value.linkedincident,
-        	name = GetNameFromId(value.cid),
-        	time = value.time
-        }
+        if value.warrant == "1" then
+			WarrantData[#WarrantData+1] = {
+                cid = value.cid,
+                linkedincident = value.linkedincident,
+                name = GetNameFromId(value.cid),
+                time = value.time
+            }
+        end
     end
     cb(WarrantData)
 end)
@@ -495,6 +573,13 @@ QBCore.Functions.CreateCallback('mdt:server:GetProfileData', function(source, cb
 			end
 		end
 
+		local citations = GetCitations(person.cid)
+		if citations then
+			person.citations = citations
+		else 
+			person.citations = 0
+		end
+
 		local vehicles = GetPlayerVehicles(person.cid)
 
 		if vehicles then
@@ -588,11 +673,11 @@ end)
 RegisterNetEvent('psmdt-mugshot:server:MDTupload', function(citizenid, MugShotURLs)
     MugShots[citizenid] = MugShotURLs
     local cid = citizenid
-    MySQL.Async.insert('INSERT INTO mdt_data (cid, pfp, gallery, tags) VALUES (:cid, :pfp, :gallery, :tags) ON DUPLICATE KEY UPDATE cid = :cid,  pfp = :pfp, gallery = :gallery, tags = :tags', {
+    MySQL.Async.insert('INSERT INTO mdt_data (cid, pfp, gallery, tags) VALUES (:cid, :pfp, :gallery, :tags) ON DUPLICATE KEY UPDATE cid = :cid,  pfp = :pfp, tags = :tags, gallery = :gallery', {
 		cid = cid,
-		pfp = MugShots[citizenid][1],
-		gallery = json.encode(MugShots[citizenid]),
+		pfp = MugShotURLs[1],
 		tags = json.encode(tags),
+		gallery = json.encode(MugShotURLs),
 	})
 end)
 

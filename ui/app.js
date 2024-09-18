@@ -32,18 +32,14 @@ let impoundChanged = false;
 
 // TEMP CONFIG OF JOBS
 const PoliceJobs = {
-  ['police']: true,
-  ['lspd']: true,
-  ['bcso']: true,
-  ['sast']: true,
-  ['sasp']: true,
-  ['sapr']: true,
-  ['doc']: true,
-  ['lssd']: true,
+  ['cpd']: true,
+  ['thp']: true,
+  ['hcso']: true,
 }
 
 const AmbulanceJobs = {
   ['ambulance']: true,
+  ['cfd']: true,
 }
 
 const DojJobs = {
@@ -230,7 +226,7 @@ $(document).ready(() => {
         .addClass("fa-plus");
     }
 
-    const { vehicles, tags, gallery, convictions, incidents, properties, fingerprint } = result;
+    const { vehicles, tags, gallery, convictions, citations, incidents, properties, fingerprint } = result;
 
     $(".manage-profile-editing-title").html(`You are currently editing ${result["firstname"]} ${result["lastname"]}`);
     $(".manage-profile-citizenid-input").val(result['cid']);
@@ -254,11 +250,14 @@ $(document).ready(() => {
     $(".vehs-holder").empty();
     $(".gallery-inner-container").empty();
     $(".convictions-holder").empty();
+    $(".citations-holder").empty();
+    
     $(".profile-incidents-holder").empty();
 
     let licencesHTML = '<div style="color: #fff; text-align:center;">No Licenses</div>';
     let tagsHTML = '<div style="color: #fff; text-align:center;">No Tags</div>';
     let convHTML = '<div style="color: #fff; text-align:center;">Clean Record</div>';
+    let citationHTML = '<div style="color: #fff; text-align:center;">No Citations</div>';
     let incidentsHTML = '<div style="color: #fff; text-align:center;">No Incidents</div>';
     let vehHTML = '<div style="color: #fff; text-align:center;">No Vehicles</div>';
     let galleryHTML = '<div style="color: #fff; text-align:center;">No Photos</div>';
@@ -290,6 +289,29 @@ $(document).ready(() => {
         convHTML = '';
         convictions.forEach(value => {
           convHTML += `<div class="white-tag">${value} </div>`;
+        })
+      }
+      if (citations && citations.length > 0) {
+        citationHTML = '';
+        citations.forEach(value => {
+          if (!value.active) {
+            citationHTML += `<div class="green-tag2" data-id=${value.citationid}>${value.citationid} </div>`;
+          } else if (value.date) {
+            const citationDate = new Date(value.date);
+            const currentDate = new Date();
+            
+            // Calculate the difference in milliseconds
+            const diffTime = currentDate - citationDate;
+            
+            // Convert the difference from milliseconds to days
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays > 30) {
+                citationHTML += `<div class="red-tag2" data-id=${value.citationid}>${value.citationid} </div>`;
+            } else {
+                citationHTML += `<div class="orange-tag2" data-id=${value.citationid}>${value.citationid} </div>`;
+            }
+        }
         })
       }
 
@@ -345,6 +367,8 @@ $(document).ready(() => {
     $(".licenses-holder").html(licencesHTML);
     $(".tags-holder").html(tagsHTML);
     $(".convictions-holder").html(convHTML);
+    $(".citations-holder").html(citationHTML);
+    
     $(".profile-incidents-holder").html(incidentsHTML);
     $(".vehs-holder").html(vehHTML);
     $(".gallery-inner-container").html(galleryHTML);
@@ -460,6 +484,18 @@ $(document).ready(() => {
       const source = "convictions-title";
       $(".convictions-holder").attr("data-source", source);
       $(".convictions-known-container").fadeIn(250); // makes the container visible
+      $(".close-all").css("filter", "brightness(15%)");
+    } else {
+      $(this).effect("shake", { times: 2, distance: 2 }, 500);
+    }
+  });
+
+  $(".citations-title").on("click", "", function () {
+    if ($(".manage-profile-citizenid-input").val()) {
+      document.addEventListener("mouseup", onMouseDownIncidents);
+      const source = "citations-title";
+      $(".citations-holder").attr("data-source", source);
+      $(".citations-known-container").fadeIn(250); // makes the container visible
       $(".close-all").css("filter", "brightness(15%)");
     } else {
       $(this).effect("shake", { times: 2, distance: 2 }, 500);
@@ -1208,6 +1244,8 @@ $(document).ready(() => {
 
       closeContainer(".incidents-person-search-container");
       closeContainer(".convictions-known-container");
+      closeContainer(".citations-known-container");
+      
       closeContainer(".incidents-known-container");
 
       if ($(".incidents-charges-table").css("display") != "none") {
@@ -1967,13 +2005,13 @@ $(document).ready(() => {
     }
   );
 
-  $('.incidents-ghost-holder').on('click', '#jail-button', function() {
-    // Get the current sentence and recommended sentence values
-    const citizenId = $(this).data("id");
-    const sentence = $(".sentence-amount").filter(`[data-id=${citizenId}]`).val();
-    const recommendSentence = $(".sentence-recommended-amount").filter(`[data-id=${citizenId}]`).val();
-    sendToJail(citizenId, sentence, recommendSentence);
-  });
+  // $('.incidents-ghost-holder').on('click', '#jail-button', function() {
+  //   // Get the current sentence and recommended sentence values
+  //   const citizenId = $(this).data("id");
+  //   const sentence = $(".sentence-amount").filter(`[data-id=${citizenId}]`).val();
+  //   const recommendSentence = $(".sentence-recommended-amount").filter(`[data-id=${citizenId}]`).val();
+  //   sendToJail(citizenId, sentence, recommendSentence);
+  // });
 
   $('.incidents-ghost-holder').on('click', '#fine-button', function() {
     // Get the current fine and recommended fine values
@@ -2095,8 +2133,7 @@ $(document).ready(() => {
                 <div class="manage-incidents-title-tag" data-id="${$(this).data("cid")}">Sentence</div>
                 <div class="associated-incidents-sentence-input" data-id="${$(this).data("cid")}"><img src="img/9Xn6xXK.webp"> <input placeholder="Enter months here..." value="0" class="sentence-amount" data-id="${$(this).data("cid")}" type="number"></div>
                 <div class="associated-incidents-controls" data-id="${$(this).data("cid")}">
-                    <div id="jail-button" class="control-button" data-id="${$(this).data("cid")}"><span class="fa-solid fa-building-columns" style="margin-top: 3.5px;"></span> Jail</div>
-                    <div id="fine-button" class="control-button" data-id="${$(this).data("cid")}"><span class="fa-solid fa-file-invoice-dollar" style="margin-top: 3.5px;"></span> Fine</div>
+                    <div id="fine-button" class="control-button" data-id="${$(this).data("cid")}"><span class="fa-solid fa-file-invoice-dollar" style="margin-top: 3.5px;"></span> Print Citation</div>
                     ${canSendToCommunityService ? `<div id="community-service-button" class="control-button" data-id="${$(this).data("cid")}"> <span class="fa-solid fa-person-digging" style="margin-top: 3.5px;"></span>Community Service</div>` : ''}
                 </div>
             </div>
@@ -2219,6 +2256,15 @@ $(document).ready(() => {
   );
 
   $(".convictions-known-container").hover(
+    function () {
+      mouse_is_inside = true;
+    },
+    function () {
+      mouse_is_inside = false;
+    }
+  );
+
+  $(".citations-known-container").hover(
     function () {
       mouse_is_inside = true;
     },
@@ -3268,12 +3314,61 @@ $(document).ready(() => {
       }, 250);
     }, 250);
   });
+
+  $(".contextmenu").on("click", ".view-citation", function () {
+    const citationId = $(this).data("info");  // Assuming 'info' contains the citation ID
+
+    $.post(
+        `https://${GetParentResourceName()}/openCitation`,
+        JSON.stringify({
+            id: citationId.toString(),
+        })
+    );
+  });
+
   $(".profile-incidents-holder").on("contextmenu", ".white-tag", function (e) {
     const args = [
       {
         className: "view-incident2",
         icon: "fas fa-search",
         text: `View Incident #${$(this).data("id")}`,
+        info: $(this).data("id"),
+        status: "",
+      },
+    ];
+    openContextMenu(e, args);
+  });
+
+  $(".citations-holder").on("contextmenu", ".green-tag2", function (e) {
+    const args = [
+      {
+        className: "view-citation",
+        icon: "fas fa-search",
+        text: `View Citation #${$(this).data("id")}`,
+        info: $(this).data("id"),
+        status: "",
+      },
+    ];
+    openContextMenu(e, args);
+  });
+  $(".citations-holder").on("contextmenu", ".red-tag2", function (e) {
+    const args = [
+      {
+        className: "view-citation",
+        icon: "fas fa-search",
+        text: `View Citation #${$(this).data("id")}`,
+        info: $(this).data("id"),
+        status: "",
+      },
+    ];
+    openContextMenu(e, args);
+  });
+  $(".citations-holder").on("contextmenu", ".orange-tag2", function (e) {
+    const args = [
+      {
+        className: "view-citation",
+        icon: "fas fa-search",
+        text: `View Citation #${$(this).data("id")}`,
         info: $(this).data("id"),
         status: "",
       },
@@ -3794,7 +3889,7 @@ $(document).ready(() => {
     }
   });
   const customThemes = {
-    lspd: {
+    cpd: {
       color1: "#1E3955",
       color2: "#213f5f",
       color3: "#2C537B",
@@ -3806,9 +3901,9 @@ $(document).ready(() => {
       color9: "#6E707C",
       color10: "#8F741B",
       image: "img/LSPD.webp",
-      name: "LOS SANTOS POLICE",
+      name: "CPD MDT",
     },
-    bcso: {
+    thp: {
       color1: "#333333",
       color2: "#57471a",
       color3: "#614f1d",
@@ -3820,9 +3915,9 @@ $(document).ready(() => {
       color9: "#6E707C",
       color10: "#8F741B",
       image: "img/BCSO.webp",
-      name: "BLAINE COUNTY SHERIFF OFFICE",
+      name: "THP MDT",
     },
-    sasp: {
+    hcso: {
       color1: "#423f39",
       color2: "#8f7c3f",
       color3: "#16537e",
@@ -3834,50 +3929,50 @@ $(document).ready(() => {
       color9: "#9c9485",
       color10: "#8F741B",
       image: "img/sasp_badge.webp",
-      name: "SAN ANDREAS STATE POLICE",
+      name: "HCSO MDT",
     },
-    sast: {
-      color1: "#2c2c2c",
-      color2: "#232323",
-      color3: "#16537e",
-      color4: "#1c1c1c",
-      color5: "#232323",
-      color6: "#121f2c",
-      color7: "#232323",
-      color8: "#2554cc",
-      color9: "#bcbcbc",
-      color10: "#8F741B",
-      image: "img/sast_badge.webp",
-      name: "SAN ANDREAS STATE TROOPERS",
-    },
-    sapr: {
-      color1: "#3b4c3a",
-      color2: "#57471a",
-      color3: "#614f1d",
-      color4: "#594b27",
-      color5: "#4d3f17",
-      color6: "#433714",
-      color7: "#57471a",
-      olor8: "#2554cc",
-      color9: "#6E707C",
-      color10: "#8F741B",
-      image: "img/sapr.webp",
-      name: "SAN ANDREAS PARK RANGERS",
-    },
-    lssd: {
-      color1: "#3b4c3a",
-      color2: "#8f7c3f",
-      color3: "#8f7c3f",
-      color4: "#806f38",
-      color5: "#4d3f17",
-      color6: "#f1c232",
-      color7: "#57471a",
-      color8: "#2554cc",
-      color9: "#6E707C",
-      color10: "#8F741B",
-      image: "img/LSSD.webp",
-      name: "LOS SANTOS SHERIFF DEPARTMENT",
-    },
+    // sast: {
+    //   color1: "#2c2c2c",
+    //   color2: "#232323",
+    //   color3: "#16537e",
+    //   color4: "#1c1c1c",
+    //   color5: "#232323",
+    //   color6: "#121f2c",
+    //   color7: "#232323",
+    //   color8: "#2554cc",
+    //   color9: "#bcbcbc",
+    //   color10: "#8F741B",
+    //   image: "img/sast_badge.webp",
+    //   name: "SAN ANDREAS STATE TROOPERS",
+    // },
+    // sapr: {
+    //   color1: "#3b4c3a",
+    //   color2: "#57471a",
+    //   color3: "#614f1d",
+    //   color4: "#594b27",
+    //   color5: "#4d3f17",
+    //   color6: "#433714",
+    //   color7: "#57471a",
+    //   olor8: "#2554cc",
+    //   color9: "#6E707C",
+    //   color10: "#8F741B",
+    //   image: "img/sapr.webp",
+    //   name: "SAN ANDREAS PARK RANGERS",
+    // },
+    // lssd: {
+    //   color1: "#3b4c3a",
+    //   color2: "#8f7c3f",
+    //   color3: "#8f7c3f",
+    //   color4: "#806f38",
+    //   color5: "#4d3f17",
+    //   color6: "#f1c232",
+    //   color7: "#57471a",
+    //   color8: "#2554cc",
+    //   color9: "#6E707C",
+    //   color10: "#8F741B",
+    //   image: "img/LSSD.webp",
+    //   name: "LOS SANTOS SHERIFF DEPARTMENT",
+    // },
     doc: {
       color1: "#191919",
       color2: "#323232",
@@ -3968,19 +4063,19 @@ $(document).ready(() => {
   function JobColors(sentJob) {
     if (sentJob) {
       if (PoliceJobs[sentJob] !== undefined)  {
-        if (sentJob == "police") {
-            applyCustomTheme(customThemes.lspd)
-          } else if (sentJob == "bcso"){
-            applyCustomTheme(customThemes.bcso)
-          } else if (sentJob == "sasp") {
-            applyCustomTheme(customThemes.sasp)
-          } else if (sentJob == "sast") {
-            applyCustomTheme(customThemes.sast)
+        if (sentJob == "cpd") {
+            applyCustomTheme(customThemes.cpd)
+          } else if (sentJob == "thp"){
+            applyCustomTheme(customThemes.thp)
+          } else if (sentJob == "hcso") {
+            applyCustomTheme(customThemes.hcso)
+          // } else if (sentJob == "sast") {
+          //   applyCustomTheme(customThemes.sast)
 
-          } else if (sentJob == "sapr") {
-            applyCustomTheme(customThemes.sapr)
-          } else if (sentJob == "lssd") {
-            applyCustomTheme(customThemes.lssd)
+          // } else if (sentJob == "sapr") {
+          //   applyCustomTheme(customThemes.sapr)
+          // } else if (sentJob == "lssd") {
+          //   applyCustomTheme(customThemes.lssd)
           } else if (sentJob == "doc") {
             applyCustomTheme(customThemes.doc)
           }
@@ -4045,7 +4140,7 @@ $(document).ready(() => {
         $(".weapons-nav-item").hide()
         $("#home-warrants-container").fadeOut(0);
         $("#home-reports-container").fadeIn(0);
-        if (sentJob == "ambulance") {
+        if (sentJob == "cfd") {
           applyCustomTheme(customThemes.ambulance)
         }
         //$(".quote-span").html("The simplest explanation is almost always somebody screwed up.");
@@ -4220,12 +4315,12 @@ window.addEventListener("message", function (event) {
         let callSign = unit.callSign ? unit.callSign : "000";
         let activeInfoJob = `<div class="unit-job active-info-job-unk">UNKNOWN</div>`;
         if (PoliceJobs[unit.unitType] !== undefined) {
-          if (unit.unitType == "police") { policeCount++;
-          activeInfoJob = `<div class="unit-job active-info-job-lspd">LSPD</div>`;
-          } else if(unit.unitType == "bcso")  { bcsoCount++;
-            activeInfoJob = `<div class="unit-job active-info-job-bcso">BCSO</div>`;
-          } else if(unit.unitType == "lssd")  { bcsoCount++;
-            activeInfoJob = `<div class="unit-job active-info-job-bcso">LSSD</div>`;
+          if (unit.unitType == "cpd") { policeCount++;
+          activeInfoJob = `<div class="unit-job active-info-job-lspd">CPD</div>`;
+          } else if(unit.unitType == "hcso")  { bcsoCount++;
+            activeInfoJob = `<div class="unit-job active-info-job-bcso">HCSO</div>`;
+          } else if(unit.unitType == "thp")  { bcsoCount++;
+            activeInfoJob = `<div class="unit-job active-info-job-bcso">GSP</div>`;
           } else if(unit.unitType == "sasp")  { saspCount++;
             activeInfoJob = `<div class="unit-job active-info-job-sasp">SASP</div>`;
           } else if(unit.unitType == "sast")  { saspCount++;
@@ -4836,7 +4931,6 @@ window.addEventListener("message", function (event) {
           <div class="manage-incidents-title-tag" data-id="${cid}">Sentence</div>
           <div class="associated-incidents-sentence-input" data-id="${cid}"><img src="img/9Xn6xXK.webp"> <input placeholder="Enter months here..." value="0" class="sentence-amount" data-id="${cid}" type="number"></div>
           <div class="associated-incidents-controls" data-id="${cid}">
-            <div id="jail-button" class="control-button" data-id="${cid}"><span class="fa-solid fa-building-columns" style="margin-top: 3.5px;"></span> Jail</div>
             <div id="fine-button" class="control-button" data-id="${cid}"><span class="fa-solid fa-file-invoice-dollar" style="margin-top: 3.5px;"></span> Fine</div>
             ${canSendToCommunityService ? `<div id="community-service-button" class="control-button" data-id="${cid}"> <span class="fa-solid fa-person-digging" style="margin-top: 3.5px;"></span>Community Service</div>` : ''}
           </div>
@@ -5508,6 +5602,13 @@ function hideIncidentsMenu() {
     !mouse_is_inside
   ) {
     $(".convictions-known-container").fadeOut(0);
+    $(".close-all").css("filter", "none");
+  }
+  if (
+    $(".citations-known-container").css("display") != "none" &&
+    !mouse_is_inside
+  ) {
+    $(".citations-known-container").fadeOut(0);
     $(".close-all").css("filter", "none");
   }
   if (

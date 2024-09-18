@@ -86,9 +86,21 @@ end)
 ------------------------------------------
 --====================================================================================\
 
-RegisterKeyMapping('mdt', 'Open Police MDT', 'keyboard', 'k')
 
-RegisterCommand('mdt', function()
+RegisterNetEvent('ps-mdt:client:openMDt', function()
+    local plyPed = PlayerPedId()
+    PlayerData = QBCore.Functions.GetPlayerData()
+    if not PlayerData.metadata["isdead"] and not PlayerData.metadata["inlaststand"] and not PlayerData.metadata["ishandcuffed"] and not IsPauseMenuActive() then
+        if GetJobType(PlayerData.job.name) ~= nil then
+            TriggerServerEvent('mdt:server:openMDT')
+            TriggerServerEvent('mdt:requestOfficerData')
+        end
+    else
+        QBCore.Functions.Notify("Can't do that!", "error")
+    end
+end)
+
+RegisterCommand('openMDT', function()
     local plyPed = PlayerPedId()
     PlayerData = QBCore.Functions.GetPlayerData()
     if not PlayerData.metadata["isdead"] and not PlayerData.metadata["inlaststand"] and not PlayerData.metadata["ishandcuffed"] and not IsPauseMenuActive() then
@@ -288,6 +300,10 @@ RegisterNUICallback("searchProfiles", function(data, cb)
 end)
 
 
+RegisterNUICallback("openCitation", function(data)
+    TriggerEvent('RD-Police-Citation:client:openspecificcitation', data.id)
+end)
+
 RegisterNetEvent('mdt:client:searchProfile', function(sentData, isLimited)
     SendNUIMessage({ action = "updateFingerprintData" })
 end)
@@ -390,26 +406,28 @@ end)
 -- Uses the QB-Core bill command to send a fine to a player
 -- If you use a different fine system, you will need to change this
 RegisterNUICallback("sendFine", function(data, cb)
-    local citizenId, fine, incidentId = data.citizenId, data.fine, data.incidentId
+    -- local citizenId, fine, incidentId = data.citizenId, data.fine, data.incidentId
     
-    -- Gets the player id from the citizenId
-    local p = promise.new()
-    QBCore.Functions.TriggerCallback('mdt:server:GetPlayerSourceId', function(result)
-        p:resolve(result)
-    end, citizenId)
+    -- -- Gets the player id from the citizenId
+    -- local p = promise.new()
+    -- QBCore.Functions.TriggerCallback('mdt:server:GetPlayerSourceId', function(result)
+    --     p:resolve(result)
+    -- end, citizenId)
 
-    local targetSourceId = Citizen.Await(p)
+    -- local targetSourceId = Citizen.Await(p)
 
-    if fine > 0 then
-        if Config.BillVariation then
-            -- Uses QB-Core removeMoney Functions
-            TriggerServerEvent("mdt:server:removeMoney", citizenId, fine, incidentId)
-        else
-            -- Uses QB-Core /bill command
-            ExecuteCommand(('bill %s %s'):format(targetSourceId, fine))
-            TriggerServerEvent("mdt:server:giveCitationItem", citizenId, fine, incidentId)
-        end
-    end
+    -- if fine > 0 then
+    --     if Config.BillVariation then
+    --         -- Uses QB-Core removeMoney Functions
+    --         TriggerServerEvent("mdt:server:removeMoney", citizenId, fine, incidentId)
+    --     else
+    --         -- Uses QB-Core /bill command
+    --         ExecuteCommand(('bill %s %s'):format(targetSourceId, fine))
+    --         TriggerServerEvent("mdt:server:giveCitationItem", citizenId, fine, incidentId)
+    --     end
+    -- end
+    TriggerServerEvent('rd-citations:usecitation')
+
 end)
 
 -- Handle sending the player to community service
